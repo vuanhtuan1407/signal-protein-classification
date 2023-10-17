@@ -2,7 +2,7 @@
 # 4. function that takes in the model and some sequences and gives embeddings
 
 # 3. give file and columns (for cdr3/TCR seqs, and delimiter)
-from lightning.pytorch.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger
 import numpy as np
 import logging as log
 from collections import OrderedDict
@@ -15,7 +15,7 @@ from torchnlp.utils import collate_tensors
 from torchnlp.datasets.dataset import Dataset
 from torchnlp.encoders import LabelEncoder
 from transformers import BertTokenizer, BertModel
-from lightning.pytorch import Trainer, seed_everything
+from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 import pytorch_lightning as pl
 from torch.nn import TransformerDecoder, TransformerDecoderLayer

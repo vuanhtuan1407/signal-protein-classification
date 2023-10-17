@@ -11,23 +11,30 @@ from Bio import SeqIO
 from sp_data.bert_tuning import ProtBertClassifier, parse_arguments_and_retrieve_logger
 from sp_data.sp6_data.read_extract_sp6_data import extract_raw_data
 
+
 def create_binary_test_file_from_fasta(data_path):
-    if data_path[-3:] == "bin": # if it's already a binary, don't do anything
+    if data_path[-3:] == "bin":  # if it's already a binary, don't do anything
         return data_path.split("/")[-1]
-    fasta_sequences = SeqIO.parse(open(data_path),'fasta')
+    fasta_sequences = SeqIO.parse(open(data_path), 'fasta')
     test_dictionary = {}
     for seq in fasta_sequences:
         seq_ = str(seq.seq)
-        true_lbl_placeholder = "#" * (len(seq_)//2 - 3)  + "UNKNOWN" + "#" * (len(seq_)//2 - 4)
+        true_lbl_placeholder = "#" * \
+            (len(seq_)//2 - 3) + "UNKNOWN" + "#" * (len(seq_)//2 - 4)
         organism_grp_placeholder = "EUKARYA"
         sp_type_placeholder = "NO_SP"
-        test_dictionary[seq_] = [np.array(1), true_lbl_placeholder, organism_grp_placeholder, sp_type_placeholder]
-    pickle.dump(test_dictionary, open(data_path.replace(".fasta", ".bin"), "wb"))
-    print("Created binary file for test set at {}.".format(data_path.replace(".fasta", ".bin")))
+        test_dictionary[seq_] = [np.array(
+            1), true_lbl_placeholder, organism_grp_placeholder, sp_type_placeholder]
+    pickle.dump(test_dictionary, open(
+        data_path.replace(".fasta", ".bin"), "wb"))
+    print("Created binary file for test set at {}.".format(
+        data_path.replace(".fasta", ".bin")))
     return data_path.split("/")[-1].replace(".fasta", ".bin")
 
+
 def check_compatibility(tune_bert=True):
-    data = pickle.load(open(get_data_folder()+"sp6_partitioned_data_train_0.bin", "rb"))
+    data = pickle.load(
+        open(get_data_folder()+"sp6_partitioned_data_train_0.bin", "rb"))
     # if the embeddings are "dummy" embeddings (used for compatibility in the dataloader, when assuming the ProtBERT
     # model is tuning with TSignal, therefore not needing precomputed embeddings) AND the run is in fact NOT tuning
     # the BERT model, then precompute bert embeddings
@@ -36,7 +43,8 @@ def check_compatibility(tune_bert=True):
         print("The current binary files sp6_partitioned_data_<train/test>_<fold>.bin are not containing precomputed BERT"
               " embeddings but the run does not tune bert (i.e. embeddings will be precomputed for efficiency). Will "
               "attempt to extract the embeddings with pretrained ProtBERT.")
-        hparams, logger = parse_arguments_and_retrieve_logger(save_dir="experiments")
+        hparams, logger = parse_arguments_and_retrieve_logger(
+            save_dir="experiments")
         hparams.train_enc_dec_sp6 = False
         hparams.use_glbl_lbls = False
         model = ProtBertClassifier(hparams)
@@ -45,27 +53,32 @@ def check_compatibility(tune_bert=True):
         dict_w_precomputed_embs = {}
         # used for batching
         seqs, lbls, glbl_lbls, og = [], [], [], []
-        for tr_or_tst in ['train','test']:
-            for tr_f in [0,1,2]:
-                data = pickle.load(open("sp_data/sp6_partitioned_data_{}_{}.bin".format(tr_or_tst, tr_f), "rb"))
-                for ind, (k,v) in tqdm(enumerate(data.items()), "computing for {} set fold {}".format(tr_or_tst,tr_f), total=len(data.items())):
+        for tr_or_tst in ['train', 'test']:
+            for tr_f in [0, 1, 2]:
+                data = pickle.load(
+                    open("sp_data/sp6_data/sp6_partitioned_data_{}_{}.bin".format(tr_or_tst, tr_f), "rb"))
+                for ind, (k, v) in tqdm(enumerate(data.items()), "computing for {} set fold {}".format(tr_or_tst, tr_f), total=len(data.items())):
                     seqs.append(" ".join([k_ for k_ in k]))
                     lbls.append(v[1])
                     og.append(v[2])
                     glbl_lbls.append(v[3])
                     # gather 20 sequences, then compute embeddings and save in the new dictionary
                     if len(seqs) > 49:
-                        embeddings = model.extract_embeddnings({"seq":seqs})
-                        for emb,s,l,gl,o in zip(embeddings, seqs, lbls, glbl_lbls,og):
-                            dict_w_precomputed_embs[s.replace(" ","")] = (emb[:len(s.replace(" ",""))], l,o,gl)
+                        embeddings = model.extract_embeddnings({"seq": seqs})
+                        for emb, s, l, gl, o in zip(embeddings, seqs, lbls, glbl_lbls, og):
+                            dict_w_precomputed_embs[s.replace(" ", "")] = (
+                                emb[:len(s.replace(" ", ""))], l, o, gl)
                         seqs, lbls, glbl_lbls, og = [], [], [], []
                 # compute the leftover sequences
                 if len(seqs) != 0:
                     for emb, s, l, gl, o in zip(embeddings, seqs, lbls, glbl_lbls, og):
-                        dict_w_precomputed_embs[s.replace(" ", "")] = (emb[:len(s.replace(" ",""))], l, o, gl)
+                        dict_w_precomputed_embs[s.replace(" ", "")] = (
+                            emb[:len(s.replace(" ", ""))], l, o, gl)
                     seqs, lbls, glbl_lbls, og = [], [], [], []
-                pickle.dump(dict_w_precomputed_embs, open("sp_data/sp6_partitioned_data_{}_{}.bin".format(tr_or_tst, tr_f), "wb"))
+                pickle.dump(dict_w_precomputed_embs, open(
+                    "sp_data/sp6_data/sp6_partitioned_data_{}_{}.bin".format(tr_or_tst, tr_f), "wb"))
                 dict_w_precomputed_embs = {}
+
 
 class SPCSpredictionData:
     def __init__(self, lbl2ind=None, form_sp_reg_data=False, simplified=True, very_simplified=True, extended_sublbls=False, tune_bert=True):
@@ -84,7 +97,7 @@ class SPCSpredictionData:
                   "Extracting files...")
             extract_raw_data(folder=get_data_folder())
         check_compatibility(tune_bert=tune_bert)
-            # exit(1)
+        # exit(1)
         if form_sp_reg_data:
             self.set_dicts(form_sp_reg_data)
             if extended_sublbls:
@@ -99,7 +112,8 @@ class SPCSpredictionData:
             # {'NO_SP': 0, 'SP': 1, 'TATLIPO': 2, 'LIPO': 3, 'TAT': 4, 'PILIN': 5},
             # {'V': 0, 'R': 1, 'D': 2, 'E': 3, 'H': 4, 'A': 5, 'G': 6, 'Y': 7, 'W': 8, 'F': 9, 'M': 10, 'K': 11, 'L': 12, 'I': 13, 'C': 14, 'Q': 15, 'S': 16, 'P': 17, 'N': 18, 'T': 19, 'PD': 20, 'BS': 21, 'ES': 22}]
         else:
-            self.lbl2ind, self.og2ind, self.glbl_lbl_2ind, self.aa2ind = pickle.load(open("sp6_dicts.bin", "rb"))
+            self.lbl2ind, self.og2ind, self.glbl_lbl_2ind, self.aa2ind = pickle.load(
+                open("sp6_dicts.bin", "rb"))
         if not extended_sublbls and not os.path.exists(self.get_data_folder() + "sp6_partitioned_data_sublbls_test_0.bin"):
             self.form_subregion_sp_data()
         elif extended_sublbls and not os.path.exists(self.get_data_folder() + "sp6_partitioned_data_sublbls_test_0.bin"):
@@ -113,9 +127,10 @@ class SPCSpredictionData:
 
         if form_sp_reg_data:
             if self.extended_sublbls:
-                dicts = [{'S': 0, 'R': 1, 'C': 2, 'O': 3, 'M': 4, 'I': 5, 'P':6, 'PD': 7, 'BS': 8, 'ES': 9},
+                dicts = [{'S': 0, 'R': 1, 'C': 2, 'O': 3, 'M': 4, 'I': 5, 'P': 6, 'PD': 7, 'BS': 8, 'ES': 9},
                          {'EUKARYA': 0, 'POSITIVE': 1, 'ARCHAEA': 2, 'NEGATIVE': 3},
-                         {'NO_SP': 0, 'SP': 1, 'TATLIPO': 2, 'LIPO': 3, 'TAT': 4, 'PILIN': 5},
+                         {'NO_SP': 0, 'SP': 1, 'TATLIPO': 2,
+                             'LIPO': 3, 'TAT': 4, 'PILIN': 5},
                          {'V': 0, 'R': 1, 'D': 2, 'E': 3, 'H': 4, 'A': 5, 'G': 6, 'Y': 7, 'W': 8, 'F': 9, 'M': 10,
                           'K': 11,
                           'L': 12,
@@ -124,7 +139,8 @@ class SPCSpredictionData:
             elif self.very_simplified:
                 dicts = [{'S': 0, 'O': 1, 'M': 2, 'I': 3, 'PD': 4, 'BS': 5, 'ES': 6},
                          {'EUKARYA': 0, 'POSITIVE': 1, 'ARCHAEA': 2, 'NEGATIVE': 3},
-                         {'NO_SP': 0, 'SP': 1, 'TATLIPO': 2, 'LIPO': 3, 'TAT': 4, 'PILIN': 5},
+                         {'NO_SP': 0, 'SP': 1, 'TATLIPO': 2,
+                             'LIPO': 3, 'TAT': 4, 'PILIN': 5},
                          {'V': 0, 'R': 1, 'D': 2, 'E': 3, 'H': 4, 'A': 5, 'G': 6, 'Y': 7, 'W': 8, 'F': 9, 'M': 10,
                           'K': 11,
                           'L': 12,
@@ -133,7 +149,8 @@ class SPCSpredictionData:
             elif self.simplified:
                 dicts = [{'S': 0, 'R': 1, 'C': 2, 'O': 3, 'M': 4, 'I': 5, 'PD': 6, 'BS': 7, 'ES': 8},
                          {'EUKARYA': 0, 'POSITIVE': 1, 'ARCHAEA': 2, 'NEGATIVE': 3},
-                         {'NO_SP': 0, 'SP': 1, 'TATLIPO': 2, 'LIPO': 3, 'TAT': 4, 'PILIN': 5},
+                         {'NO_SP': 0, 'SP': 1, 'TATLIPO': 2,
+                             'LIPO': 3, 'TAT': 4, 'PILIN': 5},
                          {'V': 0, 'R': 1, 'D': 2, 'E': 3, 'H': 4, 'A': 5, 'G': 6, 'Y': 7, 'W': 8, 'F': 9, 'M': 10,
                           'K': 11,
                           'L': 12,
@@ -144,14 +161,16 @@ class SPCSpredictionData:
                     {'P': 0, 'n': 1, 'h': 2, 'c': 3, 'N': 4, 'H': 5, 'R': 6, 'C': 7, 'B': 8, 'O': 9, 'M': 10, 'I': 11,
                      'PD': 12, 'BS': 13, 'ES': 14},
                     {'EUKARYA': 0, 'POSITIVE': 1, 'ARCHAEA': 2, 'NEGATIVE': 3},
-                    {'NO_SP': 0, 'SP': 1, 'TATLIPO': 2, 'LIPO': 3, 'TAT': 4, 'PILIN': 5},
+                    {'NO_SP': 0, 'SP': 1, 'TATLIPO': 2,
+                        'LIPO': 3, 'TAT': 4, 'PILIN': 5},
                     {'V': 0, 'R': 1, 'D': 2, 'E': 3, 'H': 4, 'A': 5, 'G': 6, 'Y': 7, 'W': 8, 'F': 9, 'M': 10, 'K': 11,
                      'L': 12,
                      'I': 13, 'C': 14, 'Q': 15, 'S': 16, 'P': 17, 'N': 18, 'T': 19, 'PD': 20, 'BS': 21, 'ES': 22}]
         else:
             dicts = [{'P': 0, 'S': 1, 'O': 2, 'M': 3, 'L': 4, 'I': 5, 'T': 6, 'PD': 7, 'BS': 8, 'ES': 9},
                      {'EUKARYA': 0, 'POSITIVE': 1, 'ARCHAEA': 2, 'NEGATIVE': 3},
-                     {'NO_SP': 0, 'SP': 1, 'TATLIPO': 2, 'LIPO': 3, 'TAT': 4, 'PILIN': 5},
+                     {'NO_SP': 0, 'SP': 1, 'TATLIPO': 2,
+                         'LIPO': 3, 'TAT': 4, 'PILIN': 5},
                      {'V': 0, 'R': 1, 'D': 2, 'E': 3, 'H': 4, 'A': 5, 'G': 6, 'Y': 7, 'W': 8, 'F': 9, 'M': 10, 'K': 11,
                       'L': 12,
                       'I': 13, 'C': 14, 'Q': 15, 'S': 16, 'P': 17, 'N': 18, 'T': 19, 'PD': 20, 'BS': 21, 'ES': 22}]
@@ -262,7 +281,8 @@ class SPCSpredictionData:
             for i in range(start_ind, last_ind - 2):
                 # window of 7 is used for the hydro values, determining the h region
                 # compute these for all SP labels, except last 3 which are
-                hydro_vals.append(sum([kyte_doolittle_hydrophobicity[seq_[j]] for j in range(i - 3, i + 4)]))
+                hydro_vals.append(
+                    sum([kyte_doolittle_hydrophobicity[seq_[j]] for j in range(i - 3, i + 4)]))
             h_ind = np.argmax(hydro_vals) + start_ind
             return h_ind, last_ind
 
@@ -275,19 +295,27 @@ class SPCSpredictionData:
         # print("\n")
         if sp_letter in possible_sp_letters:
             if glbl_lbl == "SP":
-                h_ind, last_ind = get_hydro_values(seq, lbls, sp_aa_lbl=sp_letter)
+                h_ind, last_ind = get_hydro_values(
+                    seq, lbls, sp_aa_lbl=sp_letter)
                 modified_lbls += "S" * 2 if self.simplified else "n" * 2
-                modified_lbls += "S" * (h_ind - 2) if self.simplified else "N" * (h_ind - 2)
+                modified_lbls += "S" * \
+                    (h_ind - 2) if self.simplified else "N" * (h_ind - 2)
                 modified_lbls += "S" if self.simplified else "h"
-                modified_lbls += "S" * (last_ind - h_ind - 3) if self.simplified else "H" * (last_ind - h_ind - 3)
+                modified_lbls += "S" * \
+                    (last_ind - h_ind - 3) if self.simplified else "H" * \
+                    (last_ind - h_ind - 3)
                 modified_lbls += "S" * 3 if self.simplified else "c" * 3
                 modified_lbls += lbls[last_ind + 1:]
             elif glbl_lbl == "LIPO":
-                h_ind, last_ind = get_hydro_values(seq, lbls, sp_aa_lbl=sp_letter)
+                h_ind, last_ind = get_hydro_values(
+                    seq, lbls, sp_aa_lbl=sp_letter)
                 modified_lbls += "S" * 2 if self.simplified else "n" * 2
-                modified_lbls += "S" * (h_ind - 2) if self.simplified else "N" * (h_ind - 2)
+                modified_lbls += "S" * \
+                    (h_ind - 2) if self.simplified else "N" * (h_ind - 2)
                 modified_lbls += "S" if self.simplified else "h"
-                modified_lbls += "S" * (last_ind - h_ind - 3) if self.simplified else "h" * (last_ind - h_ind - 3)
+                modified_lbls += "S" * \
+                    (last_ind - h_ind - 3) if self.simplified else "h" * \
+                    (last_ind - h_ind - 3)
                 modified_lbls += "S" * 3 if self.simplified else "B" * 3
                 # in LIPO/TATLIPO, there is always a cysteine aa after CS
                 modified_lbls += "C" if not self.very_simplified else lbls[last_ind + 1]
@@ -297,36 +325,50 @@ class SPCSpredictionData:
                 motif = get_pos_rr_motif_v2(seq, lbls)
                 # https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2654714/
                 # RR motif is a little more complicated
-                h_ind, last_ind = get_hydro_values(seq, lbls, sp_aa_lbl=sp_letter, start_ind=seq.find(motif) + 3)
+                h_ind, last_ind = get_hydro_values(
+                    seq, lbls, sp_aa_lbl=sp_letter, start_ind=seq.find(motif) + 3)
                 # nnnnnnnRRn (n region has the RR motif and one single n after).
-                modified_lbls = "S" * seq.find(motif) if self.simplified else "n" * seq.find(motif)
+                modified_lbls = "S" * \
+                    seq.find(motif) if self.simplified else "n" * \
+                    seq.find(motif)
                 modified_lbls += "R" * 2 if not self.very_simplified else "S" * 2
                 modified_lbls += "S" if self.simplified else "n"
                 current_len = len(modified_lbls)
                 # add nh <- N (uncertain n or h label) until the most hydrophobic aa at h_ind
-                modified_lbls += "S" * (h_ind - current_len) if self.simplified else "h" * (h_ind - current_len)
+                modified_lbls += "S" * \
+                    (h_ind - current_len) if self.simplified else "h" * \
+                    (h_ind - current_len)
                 # certain h subregion label at the most hydrophobic aa
                 modified_lbls += "S" if self.simplified else "h"
                 # uncertain hc <- H label until the last 3 aa in the signal peptide
-                modified_lbls += "S" * (last_ind - h_ind - 3) if self.simplified else "H" * (last_ind - h_ind - 3)
+                modified_lbls += "S" * \
+                    (last_ind - h_ind - 3) if self.simplified else "H" * \
+                    (last_ind - h_ind - 3)
                 # certain c label subregion for the last 3 aa
                 modified_lbls += "S" * 3 if self.simplified else "c" * 3
                 modified_lbls += lbls[last_ind + 1:]
             elif glbl_lbl == "TATLIPO":
                 # motif = get_pos_of_rr_motif(seq, lbls)
                 motif = get_pos_rr_motif_v2(seq, lbls)
-                h_ind, last_ind = get_hydro_values(seq, lbls, sp_aa_lbl=sp_letter, start_ind=seq.find(motif) + 3)
+                h_ind, last_ind = get_hydro_values(
+                    seq, lbls, sp_aa_lbl=sp_letter, start_ind=seq.find(motif) + 3)
                 # nnnnnnnRRn (n region has the RR motif and one single n after).
-                modified_lbls = "S" * seq.find(motif) if self.simplified else "n" * seq.find(motif)
+                modified_lbls = "S" * \
+                    seq.find(motif) if self.simplified else "n" * \
+                    seq.find(motif)
                 modified_lbls += "R" * 2 if not self.very_simplified else "S" * 2
                 modified_lbls += "S" if self.simplified else "n"
                 current_len = len(modified_lbls)
                 # add nh <- N (uncertain n or h label) until the most hydrophobic aa at h_ind
-                modified_lbls += "S" * (h_ind - current_len) if self.simplified else "h" * (h_ind - current_len)
+                modified_lbls += "S" * \
+                    (h_ind - current_len) if self.simplified else "h" * \
+                    (h_ind - current_len)
                 # certain h subregion label at the most hydrophobic aa
                 modified_lbls += "S" if self.simplified else "h"
                 # uncertain hc <- H label until the last 3 aa in the signal peptide
-                modified_lbls += "S" * (last_ind - h_ind - 3) if self.simplified else "h" * (last_ind - h_ind - 3)
+                modified_lbls += "S" * \
+                    (last_ind - h_ind - 3) if self.simplified else "h" * \
+                    (last_ind - h_ind - 3)
                 # certain c label subregion for the last 3 aa
                 modified_lbls += "S" * 3 if self.simplified else "B" * 3
                 modified_lbls += "C" if not self.very_simplified else lbls[last_ind + 1]
@@ -344,7 +386,8 @@ class SPCSpredictionData:
         for seq_record in SeqIO.parse(raw_data_file, "fasta"):
             current_seq = seq_record.seq[:len(seq_record.seq) // 2]
             if current_seq not in seq2lbls:
-                seq2lbls[current_seq] = seq_record.seq[len(seq_record.seq) // 2:]
+                seq2lbls[current_seq] = seq_record.seq[len(
+                    seq_record.seq) // 2:]
         return seq2lbls
 
     def form_subregion_sp_data(self):
@@ -368,7 +411,8 @@ class SPCSpredictionData:
         unique_aas = set()
         for p in parts:
             for t in ["train", "test"]:
-                part_dict = pickle.load(open(self.data_folder + "sp6_partitioned_data_{}_{}.bin".format(t, p), "rb"))
+                part_dict = pickle.load(
+                    open(self.data_folder + "sp6_partitioned_data_{}_{}.bin".format(t, p), "rb"))
                 for seq, (_, lbls, _, _) in part_dict.items():
                     all_unique_lbls.update(lbls)
                     unique_aas.update(seq)
@@ -390,29 +434,33 @@ class SPCSpredictionData:
         all_unique_global_inds = set()
         for p in parts:
             for t in ["train", "test"]:
-                part_dict = pickle.load(open(self.data_folder + "sp6_partitioned_data_{}_{}.bin".format(t, p), "rb"))
+                part_dict = pickle.load(
+                    open(self.data_folder + "sp6_partitioned_data_{}_{}.bin".format(t, p), "rb"))
                 for (_, _, lg, glb_ind) in part_dict.values():
                     all_unique_lgs.add(lg)
                     all_unique_global_inds.add(glb_ind)
         self.og2ind = {l: ind for ind, l in enumerate(all_unique_lgs)}
-        self.glbl_lbl_2ind = {l: ind for ind, l in enumerate(all_unique_global_inds)}
-        pickle.dump([self.lbl2ind, self.og2ind, self.glbl_lbl_2ind, self.aa2ind], open("sp6_dicts.bin", "wb"))
+        self.glbl_lbl_2ind = {l: ind for ind,
+                              l in enumerate(all_unique_global_inds)}
+        pickle.dump([self.lbl2ind, self.og2ind, self.glbl_lbl_2ind,
+                    self.aa2ind], open("sp6_dicts.bin", "wb"))
 
     def get_data_folder(self):
-        return "sp_data/"
+        return "sp_data/sp6_data/"
 
 
 class CSPredsDataset(Dataset):
     def __init__(self, lbl2inds, partitions, data_folder, glbl_lbl_2ind, train=True, sets=["train", "test"],
                  test_f_name="", form_sp_reg_data=False, tuned_bert_embs_prefix="", extended_sublbls=False, random_folds_prefix="",
-                 train_on_subset=1., pick_seqs=False,lipbobox_predictions=False ):
+                 train_on_subset=1., pick_seqs=False, lipbobox_predictions=False):
         extended_pref = "extended_" if extended_sublbls else ""
         self.life_grp, self.seqs, self.lbls, self.glbl_lbl = [], [], [], []
         self.partitions = partitions
         self.extended_pref = extended_pref
         self.form_sp_reg_data = form_sp_reg_data
-        self.lbl2inds =  {'P': 0, 'S': 1, 'O': 2, 'M': 3, 'L': 4, 'I': 5, 'T': 6, 'PD': 7, 'BS': 8, 'ES': 9} if lipbobox_predictions else  lbl2inds
-        self.glbl_lbl_2ind =glbl_lbl_2ind
+        self.lbl2inds = {'P': 0, 'S': 1, 'O': 2, 'M': 3, 'L': 4, 'I': 5, 'T': 6,
+                         'PD': 7, 'BS': 8, 'ES': 9} if lipbobox_predictions else lbl2inds
+        self.glbl_lbl_2ind = glbl_lbl_2ind
         self.data_folder = data_folder
         self.lipbobox_predictions = lipbobox_predictions
         if partitions is not None:
@@ -422,10 +470,13 @@ class CSPredsDataset(Dataset):
                     # print("sp6_partitioned_data_sublbls_"+extended_pref+"{}_{}.bin".format(s, p))
                     # exit(1)
                     d_file = random_folds_prefix + tuned_bert_embs_prefix + "sp6_partitioned_data_sublbls_"+extended_pref+"{}_{}.bin".format(s, p) if form_sp_reg_data else \
-                        random_folds_prefix + tuned_bert_embs_prefix + "sp6_partitioned_data_"+extended_pref+"{}_{}.bin".format(s, p)
+                        random_folds_prefix + tuned_bert_embs_prefix + \
+                        "sp6_partitioned_data_"+extended_pref + \
+                        "{}_{}.bin".format(s, p)
                     data_dict = pickle.load(open(data_folder + d_file, "rb"))
                     if train_on_subset != 1. and s == 'train':
-                        self.extract_subset(data_dict, train_on_subset, lbl2inds, glbl_lbl_2ind)
+                        self.extract_subset(
+                            data_dict, train_on_subset, lbl2inds, glbl_lbl_2ind)
                     else:
                         for seq_, vals_ in data_dict.items():
                             self.seqs.append(seq_)
@@ -439,17 +490,18 @@ class CSPredsDataset(Dataset):
             for seq_, vals_ in data_dict.items():
                 self.seqs.append(seq_)
                 if vals_[1][0] != "#":
-                    self.lbls.append(self.transorm_seq(vals_[1], vals_[3]) if lipbobox_predictions else [lbl2inds[l] for l in vals_[1]])
+                    self.lbls.append(self.transorm_seq(vals_[1], vals_[
+                                     3]) if lipbobox_predictions else [lbl2inds[l] for l in vals_[1]])
                 else:
                     self.lbls.append(vals_[1])
                 self.life_grp.append(vals_[2])
                 self.glbl_lbl.append(vals_[3])
         if pick_seqs:
             # was used when i had memory leaks on grad computation of input wrt the prediction; probably will be deleted
-            required_seqs=10
-            ind2lbl = {v:k for k,v in lbl2inds.items()}
-            gather_SLT = [0,0,0]
-            new_s,new_l,new_lg, new_gl = [],[],[],[]
+            required_seqs = 10
+            ind2lbl = {v: k for k, v in lbl2inds.items()}
+            gather_SLT = [0, 0, 0]
+            new_s, new_l, new_lg, new_gl = [], [], [], []
             for s, l, lg, gl in zip(self.seqs, self.lbls, self.life_grp, self.glbl_lbl):
                 act_lbl = "".join([ind2lbl[l_] for l_ in l])
                 if "S" in act_lbl[:-1] and gather_SLT[0] < required_seqs or "T" in act_lbl[:-1]\
@@ -459,9 +511,9 @@ class CSPredsDataset(Dataset):
                     new_lg.append(lg)
                     new_gl.append(gl)
                     if "S" in act_lbl[:-1]:
-                        gather_SLT[0]+=1
+                        gather_SLT[0] += 1
                     if "L" in act_lbl[:-1]:
-                        gather_SLT[1] +=1
+                        gather_SLT[1] += 1
                     if "T" in act_lbl[:-1]:
                         gather_SLT[2] += 1
                 if sum(gather_SLT) >= required_seqs * 10:
@@ -520,11 +572,15 @@ class CSPredsDataset(Dataset):
             else:
                 lg_and_sptyp2_inds[life_grp + glbl_lbl] = [ind]
         for lg_sp_type, indices in lg_and_sptyp2_inds.items():
-            samples = random.sample(indices, max(int(len(indices) * train_on_subset), 1) )
+            samples = random.sample(indices, max(
+                int(len(indices) * train_on_subset), 1))
             self.seqs.extend([seqs[smpl] for smpl in samples])
-            self.lbls.extend([[lbl2inds[l] for l in lbls[smpl]]  for smpl in samples])
+            self.lbls.extend([[lbl2inds[l] for l in lbls[smpl]]
+                             for smpl in samples])
             self.life_grp.extend([life_grps[smpl] for smpl in samples])
-            self.glbl_lbl.extend([glbl_lbl_2ind[glbl_lbls[smpl]] for smpl in samples])
+            self.glbl_lbl.extend([glbl_lbl_2ind[glbl_lbls[smpl]]
+                                 for smpl in samples])
+
 
 class SPbinaryData:
     def __init__(self, threshold_pos=0.9, threshold_neg=0.15, limit_seq=100, data="mammal"):
@@ -546,13 +602,14 @@ class SPbinaryData:
                 sequences_data, labels, names = self.extract_labeled_data(threshold_pos=threshold_pos,
                                                                           threshold_neg=threshold_neg,
                                                                           limit_seq=limit_seq)
-                sequences_data, labels, names = self.shuffle_w_even_lbl_no(sequences_data, labels, names)
+                sequences_data, labels, names = self.shuffle_w_even_lbl_no(
+                    sequences_data, labels, names)
                 pickle.dump([sequences_data, labels, names], open(self.data_folder + "raw_seq_data_{}_{}.bin".
                                                                   format(threshold_pos, threshold_neg), 'wb'))
             if not os.path.exists(self.data_folder + "bert_seq_data_{}_{}_1.bin".format(threshold_pos, threshold_neg)):
                 print("Did not find bert-embeddings for the raw SP data. Please manually extract with bert_extraction "
                       "script using the data file {}".format(
-                    "raw_seq_data_{}_{}.bin".format(threshold_pos, threshold_neg)))
+                          "raw_seq_data_{}_{}.bin".format(threshold_pos, threshold_neg)))
                 exit(1)
         self.form_cv_indices()
 
@@ -561,10 +618,12 @@ class SPbinaryData:
         sp6data = self.data == "sp6data"
         if os.path.exists(self.data_folder + "train_datasets_per_fold{}.bin".format(data_file_header)):
             self.train_datasets_per_fold = pickle.load(open(self.data_folder +
-                                                            "train_datasets_per_fold{}.bin".format(data_file_header),
+                                                            "train_datasets_per_fold{}.bin".format(
+                                                                data_file_header),
                                                             "rb"))
             self.test_datasets_per_fold = pickle.load(open(self.data_folder +
-                                                           "test_datasets_per_fold{}.bin".format(data_file_header),
+                                                           "test_datasets_per_fold{}.bin".format(
+                                                               data_file_header),
                                                            "rb"))
         else:
             files = os.listdir(self.data_folder)
@@ -576,26 +635,34 @@ class SPbinaryData:
                     all_emb_files.append(f)
 
             num_files = len(all_emb_files)
-            test_ds_inds = np.random.choice(list(range(num_files)), num_files, replace=False)
+            test_ds_inds = np.random.choice(
+                list(range(num_files)), num_files, replace=False)
             num_test_ds_per_fold = num_files // 5
             test_datasets_per_fold, train_datasets_per_fold = [], []
             # if num_test_ds_per_fold * 5 < num_files:
             left_out_ds = num_files - num_test_ds_per_fold * 5
             for i in range(5):
-                test_ds_current_fold_inds = list(test_ds_inds[i * num_test_ds_per_fold: (i + 1) * num_test_ds_per_fold])
+                test_ds_current_fold_inds = list(
+                    test_ds_inds[i * num_test_ds_per_fold: (i + 1) * num_test_ds_per_fold])
                 if left_out_ds > 0:
-                    test_ds_current_fold_inds.append(test_ds_inds[-left_out_ds])
+                    test_ds_current_fold_inds.append(
+                        test_ds_inds[-left_out_ds])
                     left_out_ds -= 1
-                train_ds_current_fold_inds = list(set(list(range(num_files))) - set(test_ds_current_fold_inds))
-                train_datasets_per_fold.append([all_emb_files[i] for i in train_ds_current_fold_inds])
-                test_datasets_per_fold.append([all_emb_files[i] for i in test_ds_current_fold_inds])
+                train_ds_current_fold_inds = list(
+                    set(list(range(num_files))) - set(test_ds_current_fold_inds))
+                train_datasets_per_fold.append(
+                    [all_emb_files[i] for i in train_ds_current_fold_inds])
+                test_datasets_per_fold.append(
+                    [all_emb_files[i] for i in test_ds_current_fold_inds])
             self.train_datasets_per_fold = train_datasets_per_fold
             self.test_datasets_per_fold = test_datasets_per_fold
             pickle.dump(self.train_datasets_per_fold, open(self.data_folder +
-                                                           "train_datasets_per_fold{}.bin".format(data_file_header),
+                                                           "train_datasets_per_fold{}.bin".format(
+                                                               data_file_header),
                                                            "wb"))
             pickle.dump(self.test_datasets_per_fold, open(self.data_folder +
-                                                          "test_datasets_per_fold{}.bin".format(data_file_header),
+                                                          "test_datasets_per_fold{}.bin".format(
+                                                              data_file_header),
                                                           "wb"))
 
     def shuffle_w_even_lbl_no(self, sequences_data, labels, names, no_sequences=4500):
@@ -611,10 +678,11 @@ class SPbinaryData:
         """
         lbl_array = np.array(labels)
         negative_indices, positive_indices = np.where(lbl_array == 0)[0].reshape(-1), \
-                                             np.where(lbl_array == 1)[0].reshape(-1)
+            np.where(lbl_array == 1)[0].reshape(-1)
         pos_sample_ratio, neg_sample_ratio = len(positive_indices) / len(lbl_array), \
-                                             len(negative_indices) / len(lbl_array)
-        not_sampled_pos, not_sampled_neg = set(positive_indices), set(negative_indices)
+            len(negative_indices) / len(lbl_array)
+        not_sampled_pos, not_sampled_neg = set(
+            positive_indices), set(negative_indices)
         all_shuffled_inds = []
         current_all_samples = []
         while len(not_sampled_neg) != 0:
@@ -624,21 +692,24 @@ class SPbinaryData:
                 current_all_samples.extend(not_sampled_pos)
                 current_all_samples.extend(not_sampled_neg)
                 # shuffle
-                current_all_samples = random.sample(current_all_samples, len(current_all_samples))
+                current_all_samples = random.sample(
+                    current_all_samples, len(current_all_samples))
                 all_shuffled_inds.extend(current_all_samples)
                 not_sampled_pos, not_sampled_neg = set(), set()
 
             else:
                 # extract the same pos-neg ratio of negatives per dataset-chunk
                 current_pos_samples, \
-                current_neg_samples = random.sample(not_sampled_pos, int(no_sequences * pos_sample_ratio)), \
-                                      random.sample(not_sampled_neg, int(no_sequences * neg_sample_ratio) + 1)
+                    current_neg_samples = random.sample(not_sampled_pos, int(no_sequences * pos_sample_ratio)), \
+                    random.sample(not_sampled_neg, int(
+                        no_sequences * neg_sample_ratio) + 1)
                 current_all_samples.extend(current_pos_samples)
                 current_all_samples.extend(current_neg_samples)
                 not_sampled_pos, not_sampled_neg = not_sampled_pos - set(current_pos_samples), \
-                                                   not_sampled_neg - set(current_neg_samples)
+                    not_sampled_neg - set(current_neg_samples)
                 # shuffle
-                current_all_samples = random.sample(current_all_samples, len(current_all_samples))
+                current_all_samples = random.sample(
+                    current_all_samples, len(current_all_samples))
                 all_shuffled_inds.extend(current_all_samples)
         sequences_data, labels, names = [sequences_data[i] for i in all_shuffled_inds], \
                                         [labels[i] for i in all_shuffled_inds], \
@@ -647,7 +718,8 @@ class SPbinaryData:
         return sequences_data, labels, names
 
     def shuffle(self, sequences_data, labels, names):
-        inds = random.sample(list(range(len(sequences_data))), len(sequences_data))
+        inds = random.sample(
+            list(range(len(sequences_data))), len(sequences_data))
         sequences_data = [sequences_data[i] for i in inds]
         labels = [labels[i] for i in inds]
         names = [names[i] for i in inds]
@@ -677,7 +749,8 @@ class SPbinaryData:
     def extract_labeled_data(self, threshold_pos=0.999, threshold_neg=0.001, limit_seq=70, mature_protein_end=""):
         name2seq, name2density = self.parse_sequence_data(path=self.data_folder + "N_sequences.txt",
                                                           limit_seq=limit_seq), \
-                                 self.parse_label_data(path=self.data_folder + "Shrink_DA_result.txt")
+            self.parse_label_data(
+                path=self.data_folder + "Shrink_DA_result.txt")
         sequence_data, labels, names = [], [], []
 
         for name, seq in name2seq.items():
@@ -695,9 +768,10 @@ class SPbinaryData:
         if os.path.exists("/scratch/work/dumitra1"):
             return "/scratch/work/dumitra1/sp_data/"
         elif os.path.exists("/home/alex"):
-            return "sp_data/"
+            return "sp_data/sp6_data"
         else:
-            return "/scratch/project2003818/dumitra1/sp_data/"
+            # return "/scratch/project2003818/dumitra1/sp_data/"
+            return "sp_data/sp6_data/"
 
 
 def collate_fn(batch):
@@ -718,7 +792,8 @@ class BinarySPDataset(Dataset):
         for t, el in zip(tcrs, embs_lbls):
             self.data.append([t, el[0], el[1]])
         del data
-        self.data = pd.DataFrame(self.data, columns=["sequence", "embeddings", "label"])
+        self.data = pd.DataFrame(
+            self.data, columns=["sequence", "embeddings", "label"])
         self.use_aa_len = use_aa_len
 
     def __len__(self):
@@ -739,46 +814,51 @@ class BinarySPDataset(Dataset):
 
 def get_data_folder():
     if os.path.exists("/scratch/work/dumitra1"):
-        return "/scratch/work/dumitra1/sp_data/"
+        return "/scratch/work/dumitra1/sp_data"
     elif os.path.exists("/home/alex"):
-        return "sp_data/"
+        return "sp_data"
     else:
-        return "sp_data/"
+        return "sp_data/sp6_data/"
 
 
 def get_sp_type_loss_weights():
     data_folder = get_data_folder()
-    sptye2count = {'NO_SP': 0, 'SP': 0, 'TATLIPO': 0, 'LIPO': 0, 'TAT': 0, 'PILIN': 0}
+    sptye2count = {'NO_SP': 0, 'SP': 0, 'TATLIPO': 0,
+                   'LIPO': 0, 'TAT': 0, 'PILIN': 0}
 
     for tr_f in [0, 1, 2]:
         for set in ["train", "test"]:
-            data = pickle.load(open(data_folder+"sp6_partitioned_data_sublbls_{}_{}.bin".format(set, tr_f), "rb"))
+            data = pickle.load(open(
+                data_folder+"sp6_partitioned_data_sublbls_{}_{}.bin".format(set, tr_f), "rb"))
             for sp_t in data.values():
                 sptye2count[sp_t[3]] += 1
     min_count = min(sptye2count.values())
-    return {k:min_count/v for k,v in sptye2count.items()}
+    return {k: min_count/v for k, v in sptye2count.items()}
+
 
 def get_residue_label_loss_weights():
     data_folder = get_data_folder()
-    aalbl2count = {'S': 0, 'O': 0, 'M': 0, 'I': 0} #,
+    aalbl2count = {'S': 0, 'O': 0, 'M': 0, 'I': 0}  # ,
 
     for tr_f in [0, 1, 2]:
         for set in ["train", "test"]:
-            data = pickle.load(open(data_folder + "sp6_partitioned_data_sublbls_{}_{}.bin".format(set, tr_f), "rb"))
+            data = pickle.load(open(
+                data_folder + "sp6_partitioned_data_sublbls_{}_{}.bin".format(set, tr_f), "rb"))
             for seq in data.values():
                 seq_ = seq[1]
                 for r in seq_:
                     aalbl2count[r] += 1
     min_count = min(aalbl2count.values())
-    #'PD': 4, 'BS': 5, 'ES': 6}
-    lbl2weights = {k:min_count/v for k,v in aalbl2count.items()}
-    lbl2weights.update({'PD':1, 'BS':1, 'ES':1})
+    # 'PD': 4, 'BS': 5, 'ES': 6}
+    lbl2weights = {k: min_count/v for k, v in aalbl2count.items()}
+    lbl2weights.update({'PD': 1, 'BS': 1, 'ES': 1})
     return lbl2weights
 
 
-if __name__=="__main__":
-    sp_data = SPCSpredictionData(form_sp_reg_data=True, extended_sublbls=True, simplified=True,very_simplified=False)
-    data_folder ="./"
+if __name__ == "__main__":
+    sp_data = SPCSpredictionData(
+        form_sp_reg_data=True, extended_sublbls=True, simplified=True, very_simplified=False)
+    data_folder = "./"
     for tr_f in [0, 1, 2]:
         for t_set in ["train", "test"]:
             print(t_set, tr_f)

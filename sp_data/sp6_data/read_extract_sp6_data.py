@@ -4,15 +4,16 @@ import random
 import matplotlib.pyplot as plt
 from Bio import SeqIO
 
+
 def parse_scan_prosites_results():
     id2stuff = {}
-    next_app =False
-    next_append=False
+    next_app = False
+    next_append = False
     with open("scan_prosite_results.fasta", "rt") as f:
         lines = f.readlines()
     for ind, f_ in enumerate(lines):
         if f_[0] == ">":
-            id = f_.split("|")[0].replace(">","")
+            id = f_.split("|")[0].replace(">", "")
         elif "Twin arginine translocation" in f_:
             next_append = True
         elif "score" in f_:
@@ -20,12 +21,14 @@ def parse_scan_prosites_results():
         elif next_app and next_append and id not in id2stuff:
             id2stuff[id] = lines[ind+2]
             next_app = False
-            next_append=False
-    for k,v in id2stuff.items():
-        print(k,v)
+            next_append = False
+    for k, v in id2stuff.items():
+        print(k, v)
 
 # parse_scan_prosites_results()
 # exit(1)
+
+
 def split_train_test_partitions(partition, split_perc=0.1):
     lgrp_and_sptype_2_inds = {}
     for ind, (seq, lbls, glbl_info) in enumerate(zip(*partition)):
@@ -34,7 +37,8 @@ def split_train_test_partitions(partition, split_perc=0.1):
             lgrp_and_sptype_2_inds[life_grp_and_sp_type].append(ind)
         else:
             lgrp_and_sptype_2_inds[life_grp_and_sp_type] = [ind]
-    seq_test, seq_train, lbls_test, lbls_train, glbl_info_train, glbl_info_test = [],[],[],[],[],[]
+    seq_test, seq_train, lbls_test, lbls_train, glbl_info_train, glbl_info_test = [
+    ], [], [], [], [], []
     for lgrp_and_sp_type, inds in lgrp_and_sptype_2_inds.items():
         if int(len(inds) * split_perc) > 0:
             no_of_test_items = int(len(inds) * split_perc)
@@ -75,22 +79,25 @@ def create_labeled_by_sp6_partition(all_ids, all_seqs, all_lbls):
             partition_2_info[partition][1].append(str(l))
             partition_2_info[partition][2].append(i)
         else:
-            partition_2_info[partition] = [[],[],[]]
+            partition_2_info[partition] = [[], [], []]
             partition_2_info[partition][0] = [str(s)]
             partition_2_info[partition][1] = [str(l)]
             partition_2_info[partition][2] = [i]
     train_partitions, test_partitions = {}, {}
     for part, info in partition_2_info.items():
-        train_current_part, test_current_part = split_train_test_partitions(info)
+        train_current_part, test_current_part = split_train_test_partitions(
+            info)
         train_partitions[part] = train_current_part
         test_partitions[part] = test_current_part
     return partition_2_info
+
 
 def create_labeled_sp6_seqs(id_and_seqs):
     ids, seqs, lbls = [], [], []
     for id_and_seq in id_and_seqs:
         seq_len = len(id_and_seq[1]) // 2
-        seq_id, seq, lbl = id_and_seq[0], str(id_and_seq[1][:seq_len]), str(id_and_seq[1][seq_len:])
+        seq_id, seq, lbl = id_and_seq[0], str(
+            id_and_seq[1][:seq_len]), str(id_and_seq[1][seq_len:])
         lbl = 1 if ("P" in lbl or "T" in lbl or "S" in lbl or "L" in lbl) else 0
         ids.append(seq_id)
         seqs.append(seq)
@@ -102,7 +109,7 @@ def create_files(inds, lbls, seqs, train=False):
     unique_seqs = set()
     # There are some duplicate seqs somehow. Remove them.
     inds_, lbls_, seqs_ = [], [], []
-    for i,l,s in zip(inds, lbls, seqs):
+    for i, l, s in zip(inds, lbls, seqs):
         if s not in unique_seqs:
             unique_seqs.add(s)
             inds_.append(i)
@@ -114,16 +121,20 @@ def create_files(inds, lbls, seqs, train=False):
         lbl2inds_seqs = {0: [], 1: []}
         for ind, l in enumerate(lbls):
             lbl2inds_seqs[l].append(ind)
-        neg_ratio = len(lbl2inds_seqs[0]) / (len(lbl2inds_seqs[1]) + len(lbl2inds_seqs[0]))
-        pos_ratio = len(lbl2inds_seqs[1]) / (len(lbl2inds_seqs[1]) + len(lbl2inds_seqs[0]))
+        neg_ratio = len(lbl2inds_seqs[0]) / \
+            (len(lbl2inds_seqs[1]) + len(lbl2inds_seqs[0]))
+        pos_ratio = len(lbl2inds_seqs[1]) / \
+            (len(lbl2inds_seqs[1]) + len(lbl2inds_seqs[0]))
         neg_inds, pos_inds = set(lbl2inds_seqs[0]), set(lbl2inds_seqs[1])
         datasets = []
         while neg_inds:
             current_ds_seqs = []
             current_ds_ids = []
             current_ds_lbls = []
-            neg_inds_current_ds = random.sample(neg_inds, min(len(neg_inds), int(file_size * neg_ratio + 1)))
-            pos_inds_current_ds = random.sample(pos_inds, min(len(pos_inds), int(file_size * pos_ratio)))
+            neg_inds_current_ds = random.sample(neg_inds, min(
+                len(neg_inds), int(file_size * neg_ratio + 1)))
+            pos_inds_current_ds = random.sample(pos_inds, min(
+                len(pos_inds), int(file_size * pos_ratio)))
             pos_inds = pos_inds - set(pos_inds_current_ds)
             neg_inds = neg_inds - set(neg_inds_current_ds)
             current_ds_seqs.extend([seqs[i] for i in pos_inds_current_ds])
@@ -138,7 +149,7 @@ def create_files(inds, lbls, seqs, train=False):
             all_seqs.extend(ds[0])
             all_lbls.extend(ds[1])
             all_ids.extend(ds[2])
-        data = [all_seqs, all_lbls,all_ids]
+        data = [all_seqs, all_lbls, all_ids]
         pickle.dump(data, open("raw_sp6_train_data.bin", "wb"))
     else:
         pickle.dump([seqs, lbls, inds], open("raw_sp6_bench_data.bin", "wb"))
@@ -147,10 +158,9 @@ def create_files(inds, lbls, seqs, train=False):
 def is_seqid_in_decided_inds(seq_rec, decided_ids):
     return seq_rec.id.split("|")[0] in decided_ids
 
+
 def check_already_added(seq_rec, added_seqs):
     return seq_rec.seq[:len(seq_rec.seq)//2] in added_seqs
-
-
 
 
 def extract_raw_data(folder):
@@ -196,17 +206,21 @@ def extract_raw_data(folder):
         seq2stuff = {}
         for id_ in range(len(train[0])):
             seq, lbls, lggrp_glblid = train[0][id_], train[1][id_], train[2][id_]
-            lg_grp, glbl_lbl = lggrp_glblid.split("|")[1], lggrp_glblid.split("|")[2]
+            lg_grp, glbl_lbl = lggrp_glblid.split(
+                "|")[1], lggrp_glblid.split("|")[2]
             lbls = lbls if glbl_lbl != "TATLIPO" else lbls.replace("T", "W")
             seq2stuff[train[0][id_]] = (1, lbls, lg_grp, glbl_lbl)
-        pickle.dump(seq2stuff, open(folder+"sp6_partitioned_data_train_{}.bin".format(part_ind), "wb"))
+        pickle.dump(seq2stuff, open(
+            folder+"sp6_partitioned_data_train_{}.bin".format(part_ind), "wb"))
         seq2stuff = {}
         for id_ in range(len(test[0])):
             seq, lbls, lggrp_glblid = test[0][id_], test[1][id_], test[2][id_]
-            lg_grp, glbl_lbl = lggrp_glblid.split("|")[1], lggrp_glblid.split("|")[2]
+            lg_grp, glbl_lbl = lggrp_glblid.split(
+                "|")[1], lggrp_glblid.split("|")[2]
             lbls = lbls if glbl_lbl != "TATLIPO" else lbls.replace("T", "W")
             seq2stuff[test[0][id_]] = (1, lbls, lg_grp, glbl_lbl)
-        pickle.dump(seq2stuff, open(folder+"sp6_partitioned_data_test_{}.bin".format(part_ind), "wb"))
+        pickle.dump(seq2stuff, open(
+            folder+"sp6_partitioned_data_test_{}.bin".format(part_ind), "wb"))
     # return
     # exit(1)
     # for part_ind, partition in partition_2_info.items():

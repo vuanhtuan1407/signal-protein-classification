@@ -1651,6 +1651,7 @@ def train_cs_predictors(args):
             seqs, lbl_seqs, _, glbl_lbls = batch
             # if augment_trimmed_seqs:
             cuts = np.random.randint(0, 10, len(seqs))
+            # print(cuts)
             if args.augment_trimmed_seqs:
                 cut_seqs = [s[:-cuts[cut_ind]] if cut_ind !=
                             0 else s for cut_ind, s in enumerate(seqs)]

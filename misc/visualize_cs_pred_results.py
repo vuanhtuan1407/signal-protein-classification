@@ -578,7 +578,7 @@ def extract_seq_group_for_predicted_aa_lbls(filename="run_wo_lg_info.bin", test_
     info_dictionary = {}
     for t in ['train', 'test']:
         for tf in [0, 1, 2]:
-            file = get_data_folder()+"sp6_partitioned_data_{}_{}.bin".format(t, tf)
+            file = get_data_folder()+"sp6_data/sp6_partitioned_data_{}_{}.bin".format(t, tf)
             for seq, data in pickle.load(open(file, "rb")).items():
                 info_dictionary[seq] = [
                     "|".join([data[-2], data[-1]]), data[-3]]
@@ -599,10 +599,8 @@ def extract_seq_group_for_predicted_aa_lbls(filename="run_wo_lg_info.bin", test_
 
 
 def get_data_folder() -> str:
-    if os.path.exists("sp6_data/"):
-        return "./"
-    elif os.path.exists("results"):
-        return "../sp_data/"
+    sp_data_abspath = os.path.abspath("sp_data")
+    return sp_data_abspath + "/"
 
 
 def get_cs_and_sp_pred_results(filename="run_wo_lg_info.bin", v=False, probabilities_file=None, return_everything=False,
